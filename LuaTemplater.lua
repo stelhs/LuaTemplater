@@ -1,10 +1,21 @@
 LTpl = {}
 LTpl.__index = LTpl
 
-function LTpl.new(content)
+function _getFileContent(fileName)
+    local fileContent = ''
+
+    for line in io.lines(fileName) do
+        line = string.gsub(line, '//.*', '')
+        fileContent = fileContent..line..'\n'
+    end
+
+    return fileContent
+end
+
+function LTpl.new(fileName)
     local self = setmetatable({}, LTpl)
 
-    self.content = content
+    self.content = _getFileContent(fileName)
     self.blocks = {}
 
     self:init()
@@ -17,6 +28,7 @@ function LTpl.init(self)
 end
 
 function LTpl.parseContent(self)
+    self.content = string.gsub(self.content, '//.*%z', '')
     self.content = self:findBlocks(self.content)
 end
 
@@ -25,6 +37,11 @@ function LTpl.findBlocks(self, text)
 
     if text ~= nil then
         local blockName = string.match(text, startBlockRegexp) or ''
+        local endBlockRegexp = '<!%-%- *END BLOCK *: *'..blockName..' *%-%->'
+
+        if string.len(blockName) > 0 and string.match(text, endBlockRegexp) == nil then
+            error ('Error parsing block: '..blockName)
+        end
 
         while string.len(blockName) > 0 do
             text = self:findBlock(text, blockName)
@@ -75,6 +92,7 @@ end
 
 function LTpl.cleanBlock(self, block)
     local crearBlock = string.gsub(block, '{%w+}', '')
+
     return crearBlock
 end
 

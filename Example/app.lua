@@ -1,15 +1,5 @@
 require 'LuaTemplater'
 
-function _getFileContent(fileName)
-    local fileContent = ''
-
-    for line in io.lines(fileName) do
-        fileContent = fileContent..line..'\n'
-    end
-
-    return fileContent
-end
-
 function _printToFile(fileName, content)
     local file = io.open(fileName, 'w')
 
@@ -19,7 +9,7 @@ function _printToFile(fileName, content)
 end
 
 function main ()
-    local ltpl = LTpl.new( _getFileContent('Templates/main.html'))
+    local ltpl = LTpl.new 'Templates/main.html'
 
     ltpl:assign('basicSettings', {
         enableWirelessChecked = 'checked';
