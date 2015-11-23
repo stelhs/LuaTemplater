@@ -28,8 +28,87 @@ function LTpl.init(self)
 end
 
 function LTpl.parseContent(self)
-    self.content = string.gsub(self.content, '//.*%z', '')
+    self.content = self:findIncludeBlocks(self.content)
     self.content = self:findBlocks(self.content)
+end
+
+function LTpl.findIncludeBlocks(self, text)
+    local startBlockRegexp = '<!%-%- *INCLUDE BLOCK *: *([%w\.]+) *%-%->'
+
+    if text ~= nil then
+        local fileName = string.match(text, startBlockRegexp) or ''
+        local endBlockRegexp = '<!%-%- *END BLOCK *: *'..fileName..' *%-%->'
+
+        if string.len(fileName) > 0 and string.match(text, endBlockRegexp) == nil then
+            error ('Error parsing block: '..blockName)
+        end
+
+        while string.len(fileName) > 0 do
+            text = self:findIncludeBlock(text, fileName)
+            fileName = string.match(text, startBlockRegexp) or ''
+        end
+    end
+
+    return text
+end
+
+function LTpl.findIncludeBlock(self, text, fileName)
+    if text == nil or string.len(fileName) < 1 then
+        return text
+    end
+
+    local blockRegexp = '<!%-%- *INCLUDE BLOCK *: *'..fileName..' *%-%->(.*)<!%-%- *END BLOCK *: *'..fileName..' *%-%->'
+    local replaceBlockRegexp = '<!%-%- *INCLUDE BLOCK *: *'..fileName..' *%-%->.*<!%-%- *END BLOCK *: *'..fileName..' *%-%->'
+
+    local data = string.match(text, blockRegexp);
+
+    text = string.gsub(text, replaceBlockRegexp, LTpl:fillIncludeBlock(fileName, data))
+
+    return text
+end
+
+function LTpl.fillIncludeBlock(self, fileName, data)
+    local ltpl = LTpl.new(fileName)
+
+    assignBlocks(ltpl, data)
+
+    return ltpl:getContent()
+end
+
+function assignBlocks(ltpl, data)
+    local startBlockDataRegexp = '<(%w+) *([ =%w]*)>'
+
+    if data ~= nil then
+        local blockName, blockData = string.match(data, startBlockDataRegexp)
+
+        while blockName and blockData and string.len(blockName) > 0 and string.len(blockData) > 0 do
+            local parsedData = parseData(blockData)
+            ltpl:assign(blockName, parsedData)
+
+            local innerData = string.match(data, '<'..blockName..' *'..blockData..'>(.*)</'..blockName..'>')
+            assignBlocks(ltpl, innerData)
+
+            data = string.gsub(data, '<'..blockName..' *'..blockData..'>'..innerData..'</'..blockName..'>', '')
+            blockName, blockData = string.match(data, startBlockDataRegexp)
+        end
+    end
+
+    return parsedData
+end
+
+function parseData(blockData)
+    local data = {}
+
+    local paramRegexp = '(%w+)=(%w+)'
+    local key, value = string.match(blockData, paramRegexp)
+
+    while key and value and string.len(key) > 0 and string.len(value) > 0 do
+        data[key] = value
+        blockData = string.gsub(blockData, key..'='..value, '')
+        key, value = string.match(blockData, paramRegexp)
+    end
+
+    return data
 end
 
 function LTpl.findBlocks(self, text)

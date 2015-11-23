@@ -28,8 +28,47 @@ function LTpl.init(self)
 end
 
 function LTpl.parseContent(self)
-    self.content = string.gsub(self.content, '//.*%z', '')
+    self.content = self:findIncludeBlocks(self.content)
     self.content = self:findBlocks(self.content)
+end
+
+function LTpl.findIncludeBlocks(self, text)
+    local startBlockRegexp = '<!%-%- *INCLUDE BLOCK *: *(%w+) *%-%->'
+
+    if text ~= nil then
+        local fileName = string.match(text, startBlockRegexp)
+        local endBlockRegexp = '<!%-%- *END BLOCK *: *'..fileName..' *%-%->'
+
+        if string.len(fileName) > 0 and string.match(text, endBlockRegexp) == nil then
+            error ('Error parsing block: '..blockName)
+        end
+
+        while string.len(fileName) > 0 do
+            text = self:findIncludeBlock(text, fileName)
+            fileName = string.match(text, startBlockRegexp) or ''
+        end
+    end
+
+    return text
+end
+
+function LTpl.findIncludeBlock(self, text, fileName)
+    if text == nil then
+        return text
+    end
+
+    local blockRegexp = '<!%-%- *INCLUDE BLOCK *: *'..fileName..' *%-%->(.*)<!%-%- *END BLOCK *: *'..fileName..' *%-%->'
+    local replaceBlockRegexp = '<!%-%- *INCLUDE BLOCK *: *'..fileName..' *%-%->.*<!%-%- *END BLOCK *: *'..fileName..' *%-%->'
+
+    local block = string.match(text, blockRegexp);
+
+    text = string.gsub(text, replaceBlockRegexp, LTpl.fillIncludeBlock(block))
+
+    return text
+end
+
+function LTpl.findIncludeBlock(self, block)
+    return 'INCLUDE BLOCK'
 end
 
 function LTpl.findBlocks(self, text)
