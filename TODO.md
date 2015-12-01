@@ -1,5 +1,3 @@
 /**/
 
-default blocks
-
 \s+ remove

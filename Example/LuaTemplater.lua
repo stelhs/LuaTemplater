@@ -12,11 +12,12 @@ function _getFileContent(fileName)
     return fileContent
 end
 
-function LTpl.new(fileName)
+function LTpl.new(fileName, rootBlocks)
     local self = setmetatable({}, LTpl)
 
     self.content = _getFileContent(fileName)
     self.blocks = {}
+    self.rootBlocks = rootBlocks
 
     self:init()
 
@@ -33,14 +34,14 @@ function LTpl.parseContent(self)
 end
 
 function LTpl.findIncludeBlocks(self, text)
-    local startBlockRegexp = '<!%-%- *INCLUDE BLOCK *: *(%w+) *%-%->'
+    local startBlockRegexp = '<!%-%- *START INSERT *: *([%w%.]+) *%-%->'
 
     if text ~= nil then
-        local fileName = string.match(text, startBlockRegexp)
-        local endBlockRegexp = '<!%-%- *END BLOCK *: *'..fileName..' *%-%->'
+        local fileName = string.match(text, startBlockRegexp) or ''
+        local endBlockRegexp = '<!%-%- *END INSERT *: *'..fileName..' *%-%->'
 
         if string.len(fileName) > 0 and string.match(text, endBlockRegexp) == nil then
-            error ('Error parsing block: '..blockName)
+            error ('Error parsing block: '..fileName)
         end
 
         while string.len(fileName) > 0 do
@@ -57,18 +58,86 @@ function LTpl.findIncludeBlock(self, text, fileName)
         return text
     end
 
-    local blockRegexp = '<!%-%- *INCLUDE BLOCK *: *'..fileName..' *%-%->(.*)<!%-%- *END BLOCK *: *'..fileName..' *%-%->'
-    local replaceBlockRegexp = '<!%-%- *INCLUDE BLOCK *: *'..fileName..' *%-%->.*<!%-%- *END BLOCK *: *'..fileName..' *%-%->'
+    local blockRegexp = '<!%-%- *START INSERT *: *'..fileName..' *%-%->(.*)<!%-%- *END INSERT *: *'..fileName..' *%-%->'
+    local replaceBlockRegexp = '<!%-%- *START INSERT *: *'..fileName..' *%-%->.*<!%-%- *END INSERT *: *'..fileName..' *%-%->'
 
     local block = string.match(text, blockRegexp);
 
-    text = string.gsub(text, replaceBlockRegexp, LTpl.fillIncludeBlock(block))
+    text = string.gsub(text, replaceBlockRegexp, LTpl:parseData(block, fileName))
 
     return text
 end
 
-function LTpl.findIncludeBlock(self, block)
-    return 'INCLUDE BLOCK'
+function LTpl.parseData(self, block, fileName)
+    local root = {}
+
+    local variableRegexp = '<([^>]*)>'
+    local blockRegexp = '!%-%- *START ASSIGN *: *([%w]+) *%-%-'
+    local variable = string.match(block, variableRegexp)
+    local blockName = nil
+
+    print(block)
+
+    while blockName == nil and variable ~= nil do
+        local valueRegexp = '< *'..variable..' *>([^<>]*)</ *'..variable..' *>'
+        local value = string.match(block, valueRegexp)
+
+        local valueReplaceRegexp = '< *'..variable..' *>'..value..'</ *'..variable..' *>'
+        root[variable] = value
+
+        block = string.gsub(block, valueReplaceRegexp, '')
+
+        variable = string.match(block, variableRegexp)
+        blockName = string.match(variable or '', blockRegexp)
+    end
+
+    local blockLtpl = LTpl.new(fileName, root)
+
+    if blockName ~= nil then
+        local blockDataRegexp = '<!%-%- *START ASSIGN *: *'..blockName..' *%-%->(.*)<!%-%- *END ASSIGN *: *'..blockName..' *%-%->'
+        LTpl:parseBlock(blockLtpl, string.match(block, blockDataRegexp), blockName)
+    end
+
+    return blockLtpl:getContent()
+end
+
+function LTpl.parseBlock(self, ltpl, block, name)
+    if block == nil then
+        return
+    end
+
+    local root = {}
+
+    print(block)
+
+    local variableRegexp = '<([^>]*)>'
+    local blockRegexp = '!%-%- *START ASSIGN *: *([%w]+) *%-%-'
+    local variable = string.match(block, variableRegexp)
+    local blockName = nil
+
+    while blockName == nil and variable ~= nil do
+        local valueRegexp = '< *'..variable..' *>([^<>]*)</ *'..variable..' *>'
+        local value = string.match(block, valueRegexp)
+
+        local valueReplaceRegexp = '< *'..variable..' *>'..value..'</ *'..variable..' *>'
+        root[variable] = value
+
+        print(variable, value)
+
+        block = string.gsub(block, valueReplaceRegexp, '')
+
+        print(valueReplaceRegexp, block)
+
+        variable = string.match(block, variableRegexp)
+        blockName = string.match(variable or '', blockRegexp)
+    end
+
+    ltpl:assign(name, root)
+
+    if blockName ~= nil then
+        local blockDataRegexp = '<!%-%- *START ASSIGN *: *'..blockName..' *%-%->(.*)<!%-%- *END ASSIGN *: *'..blockName..' *%-%->'
+        LTpl:parseBlock(ltpl, string.match(block, blockDataRegexp), blockName)
+    end
 end
 
 function LTpl.findBlocks(self, text)
@@ -124,19 +193,38 @@ function LTpl.fillTemplate(self, blockName, data)
         end
     end
 
-    block = self:cleanBlock(block)
-
     return block
 end
 
-function LTpl.cleanBlock(self, block)
-    local crearBlock = string.gsub(block, '{%w+}', '')
+function LTpl.assignRootBlocks(self, text, rootBlocks)
+    if rootBlocks ~= nil then
+        for key, value in pairs(rootBlocks) do
+            text = string.gsub(text, '{'..key..'}', value)
+        end
+    end
 
-    return crearBlock
+    return text
+end
+
+function LTpl.clean(self, text)
+    local text = string.gsub(text, '{%w+}', '')
+    text = string.gsub(text, '<!%-%-block_name: %w+%-%->', '')
+
+--    text = LTpl:cleanLinesAndSpaces(text)
+
+    return text
+end
+
+function LTpl.cleanLinesAndSpaces(self, text)
+    text = string.gsub(text, '\n', '')
+    text = string.gsub(text, '%s+', ' ')
+
+    return text
 end
 
 function LTpl.getContent(self)
-    local result = string.gsub(self.content, '<!%-%-block_name: %w+%-%->', '')
+    local result = LTpl:assignRootBlocks(self.content, self.rootBlocks)
+    result = LTpl:clean(result)
 
     return result
 end
