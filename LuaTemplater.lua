@@ -205,6 +205,14 @@ local function _init(self)
     _parseContent(self)
 end
 
+--
+-- Create new instance of LuaTemplater
+--
+-- @param fileName               (String)                       Template file name
+-- @param rootBlocks             (Table)                        Table with pairs <key, value> wich set in all template
+-- @param cleanFile              (Boolean)  (optionaly = false) Clean file from duplicate spaces and empty lines
+-- @param cleanUnusedVariables   (Boolean)  (optionaly = true)  Clean variables wich not setted (used inside LuaTemplater)
+--
 function LTpl.new(fileName, rootBlocks, cleanFile, cleanUnusedVariables)
     local self = setmetatable({}, LTpl)
 
@@ -230,6 +238,12 @@ local function _fillTemplate(self, blockName, data)
     return block
 end
 
+--
+-- Assign block with data
+--
+-- @param blockName  (String)   Name of block in template
+-- @param data       (Table)    Table wich contains pairs variable <name, value>
+--
 function LTpl.assign(self, blockName, data)
     local block = _fillTemplate(self, blockName, data)
 
@@ -271,6 +285,11 @@ local function _assignRootBlocks(self)
     return text
 end
 
+--
+-- Returns content in one line
+--
+-- @return (String)  String with filled template
+--
 function LTpl.getContent(self)
     _assignRootBlocks(self)
     _clean(self)
