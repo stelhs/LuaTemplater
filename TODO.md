@@ -1,3 +1,5 @@
-/**/
-
-\s+ remove
+*START INSERT/BLOCK RECURSIVE +
+*ADD TO Constructor variable for strip spaces +
+*COMMENT FOR PUBLIC FUNC +
+*REMOVE BLOCKS FROM COMMENTS +
+*EQUALS BLOCKS NAME CHECK
