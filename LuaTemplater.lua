@@ -100,9 +100,15 @@ local function _parseBlock(self, text, blockName)
 
     local blockData = string.match(text, _getBlockDataRegexp(blockName))
 
-    self.blocks[blockName] = _parseBlocks(self, blockData)
+    local parsedBlockData = _parseBlocks(self, blockData)
 
-    text = string.gsub(text, _getBlockReplaceRegexp(blockName), '<!--block_name: ' .. blockName .. '-->')
+    if self.blocks[blockName] == nil then
+        self.blocks[blockName] = parsedBlockData
+    else
+        error('Duplicate block names: '..blockName)
+    end
+
+    text = string.gsub(text, _getBlockReplaceRegexp(blockName), '<!--block_name: ' .. blockName .. '-->', 1)
 
     return text
 end
